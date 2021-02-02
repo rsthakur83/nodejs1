@@ -20,10 +20,10 @@ steps:
 
 
 
-- task: Anchore@0
-  inputs:
-    image: '$(dockerId)/$(imageName)'
-    debug: true
+# - task: Anchore@0
+#   inputs:
+#     image: '$(dockerId)/$(imageName)'
+#     debug: true
 
 
     
