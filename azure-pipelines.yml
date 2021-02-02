@@ -11,8 +11,6 @@ variables:
 steps:
 - script: |
     npm install
-    npm run serve
-    npm run build
     npm run test
     docker build -f Dockerfile -t $(dockerId)/$(imageName) .
     docker login -u $(dockerId) -p $pswd
