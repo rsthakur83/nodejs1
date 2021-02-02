@@ -1,0 +1,119 @@
+# Build Docker image for this app using Azure Pipelines
+
+# https://docs.microsoft.com/azure/devops/pipelines/languages/docker?view=vsts
+pool:
+  vmImage: 'Ubuntu 16.04'
+  
+variables:
+  imageName: 'nodejssample:$(Build.BuildId)'
+  # define two more variables dockerId and dockerPassword in the build pipeline in UI
+
+steps:
+- script: |
+    npm install
+    npm run serve
+    npm run build
+    npm run test
+    docker build -f Dockerfile -t $(dockerId)/$(imageName) .
+    docker login -u $(dockerId) -p $pswd
+    docker push $(dockerId)/$(imageName)
+  env:
+    pswd: $(dockerPassword)
+
+
+- task: SonarQubePrepare@4
+  inputs:
+    SonarQube: 'sonarqube'
+    scannerMode: 'CLI'
+    configMode: 'manual'
+    cliProjectKey: 'nodejs'
+    cliProjectName: 'nodejs'
+    cliSources: '.'
+
+- task: Anchore@0
+  inputs:
+    image: '$(dockerId)/$(imageName)'
+    debug: true
+
+
+    
+- task: CmdLine@2
+  inputs:
+    script: |
+      echo Write your commands here
+      echo '$(System.DefaultWorkingDirectory)'
+      echo '$(Pipeline.Workspace)'
+      ls manifest/deployment.yaml
+      echo %cd%
+      echo Hello world
+      
+- task: PublishTestResults@2
+  condition: succeededOrFailed()
+  inputs:
+    testResultsFiles: '**/TEST-RESULTS.xml'
+    testRunTitle: 'Test results for JavaScript'
+
+- task: PublishCodeCoverageResults@1
+  inputs: 
+    codeCoverageTool: Cobertura
+    summaryFileLocation: '$(System.DefaultWorkingDirectory)/**/*coverage.xml'
+    reportDirectory: '$(System.DefaultWorkingDirectory)/**/coverage'
+
+
+
+- task: CopyFiles@2
+  inputs:
+    SourceFolder: '$(System.DefaultWorkingDirectory)/manifest'
+    Contents: '**'
+    TargetFolder: '$(Build.ArtifactStagingDirectory)'
+    OverWrite: true
+    
+
+- bash: echo After copying to Build Artifact Directory; ls -R $(Build.ArtifactStagingDirectory)
+
+- task: PublishBuildArtifacts@1
+  inputs:
+    PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+    ArtifactName: 'kube-manifests'
+    publishLocation: 'Container'
+
+- task: Bash@3
+  displayName: Deploy Kubernetes
+  inputs:
+    targetType: 'inline'
+    script: |
+      # Write your commands here
+         echo 'Hello world'
+         pwd
+         cat /etc/issue
+         uname -a
+         echo $(KEY) > testfile
+         foo=$(cat testfile); echo -e ${foo// /\\n} > outfile
+         sed '/BEGIN\|OPENSSH\|END\|KEY\|PRIVATE/d' outfile > outfile1
+         awk 'BEGIN{print "-----BEGIN OPENSSH PRIVATE KEY-----"}{print}' outfile1 > finalkey
+         echo "-----END OPENSSH PRIVATE KEY-----" >> finalkey
+         chmod 400 finalkey
+         cat finalkey
+         ls -l manifest/deployment.yaml
+         scp -i finalkey -o StrictHostKeyChecking=no  manifest/deployment.yaml    root@34.91.216.79:/tmp
+         ssh -i finalkey -o StrictHostKeyChecking=no  root@34.91.216.79 kubectl apply -f /tmp/deployment.yaml
+         ssh -i finalkey -o StrictHostKeyChecking=no  root@34.91.216.79 kubectl get pods
+
+# - task: KubernetesManifest@0
+#   inputs:
+#     action: 'deploy'
+#     kubernetesServiceConnection: 'Kubernetes-ravi'
+#     namespace: 'default'
+#     manifests: '$(System.DefaultWorkingDirectory)/manifest/deployment.yaml'
+    
+
+
+# - task: KubernetesManifest@0
+#   inputs:
+#     action: 'deploy'
+#     kubernetesServiceConnection: 'Kubernetes-ravi'
+#     namespace: 'default'
+#     manifests: '$(Pipeline.Workspace)/manifest/deployment.yml'
+
+    
+    
